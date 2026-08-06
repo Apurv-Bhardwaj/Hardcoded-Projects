@@ -63,3 +63,14 @@ def register():
         flash('Congratulations, you are now a registered user!')
         return redirect(url_for('login'))
     return render_template('register.html', title = 'Register', form=form)
+
+
+@app.route('/user/<username>') #<> dynamic component added into the decorator so the URL accepts any text in its place
+@login_required
+def user(username):
+    user = db.first_or_404(sa.select(User).where(User.username == username)) #db.first_or_404 is a version of scalar(s)
+    posts = [
+        {'author': user, 'body': 'Test post #1'},
+        {'author': user, 'body': 'Test post #2'}
+    ]
+    return render_template('user.html', user=user, posts=posts)
