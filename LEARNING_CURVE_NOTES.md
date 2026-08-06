@@ -110,3 +110,73 @@ flask db upgrade
 # Re-runs upgrade() for every migration in order, rebuilding the schema
 # (tables + indexes) from nothing.
 ```
+
+## Bugs found & fixed (running log)
+
+Chronological log of real bugs hit while building this app — symptom, root
+cause, fix. Kept short on purpose; the "why" is the part worth remembering.
+
+1. **`config.py` — `os.ath.abspath` / `os.environ.het`**
+   Typos for `os.path` / `os.environ.get`. Crashed on the very first import,
+   before Flask even started — `AttributeError: module 'os' has no attribute 'ath'`.
+
+2. **`config.py` — `SQLALCHEMY_DATABSE_URI` (missing “A”)**
+   Flask-SQLAlchemy never saw the real config key, so it had no database URI
+   at all: `RuntimeError: Either 'SQLALCHEMY_DATABASE_URI' or 'SQLALCHEMY_BINDS' must be set`.
+   This is what made `flask db init`/`migrate` fail.
+
+3. **`models.py` — `so.mapped[str]` (lowercase) instead of `so.Mapped[str]`**
+   Python is case-sensitive; `sqlalchemy.orm` only exports `Mapped`.
+   `AttributeError: module 'sqlalchemy.orm' has no attribute 'mapped'`.
+
+4. **`models.py` — `author = so.Mapped[User] = so.relationship(...)`**
+   Chained assignment instead of a type annotation (missing `:`). Tried to
+   call `so.Mapped.__setitem__`, which doesn't exist — broken at class-body
+   execution time, not just a lint warning.
+
+5. **`models.py` — `__repr__` dedented out of the `User` class**
+   Ended up as a dangling module-level function using `self` with nothing to
+   bind it to — dead code, and it's why `User`/`Post` printed with default
+   reprs instead of `<User john>`.
+
+6. **`werkzeug.security` works, but `User.set_password`/`check_password` didn't exist yet**
+   `generate_password_hash`/`check_password_hash` are just functions — they
+   don't attach themselves to the model. Had to write the two wrapper methods
+   on `User` by hand.
+
+7. **`app/__init__.py` — a second `app = Flask(__name__)`**
+   The big one. A stray duplicate `Flask()` call overwrote the configured
+   `app` instance with a fresh, unconfigured one *after* `db`/`Config` were
+   already bound to the first instance. Everything after that line
+   (`LoginManager`, all of `routes.py`) attached to the empty instance —
+   config and db extension effectively vanished. Symptoms varied depending
+   on what ran first: `AttributeError: 'Flask' object has no attribute 'login_manager'`,
+   then `RuntimeError: no secret key was set`, then `SQLALCHEMY_DATABASE_URI` reading `None`.
+   One duplicate line, three different-looking errors — a good reminder to
+   check for double-initialization before chasing each symptom separately.
+
+8. **`routes.py` — `login()` used `db.session.scalars()` (plural) and checked the wrong field**
+   `.scalars()` returns an iterator that's never `None`, so the "user not
+   found" branch could never trigger correctly; needed `.scalar()` (singular)
+   for a single result-or-`None`. Also compared the password against
+   `form.username.data` instead of `form.password.data` — login would have
+   accepted the username as if it were the password.
+
+9. **`login.html` — `url_for('register) }}` missing closing quote**
+   Broke Jinja compilation entirely: `TemplateSyntaxError: unexpected char "'"`.
+
+10. **`register.html` — `for.password2.label` / `for.submit()`**
+    Typo'd `form` as `for` (a reserved word in Jinja's `{% for %}` tag, but
+    fine as a plain variable name — just the wrong one here). Jinja treated
+    it as an undefined variable: `UndefinedError: 'for' is undefined`.
+
+11. **`routes.py` — `index()` built a `user` dict but never passed it to `render_template`**
+    `index.html` does `{{ user.username }}`; since `user` wasn't in the
+    template context, Jinja raised `UndefinedError: 'user' is undefined`.
+    Classic case of the local variable existing but never making it into the
+    call that actually needs it.
+
+**Pattern across most of these:** almost every bug was a *name* mismatch —
+a typo, a wrong case, a variable built but not passed through — not a logic
+or design problem. Worth a slow read-through of variable names before
+assuming something structural is broken.
