@@ -5,9 +5,13 @@ from flask_login import current_user, login_user
 import sqlalchemy as sa
 from app import db
 from app.models import User
-
-
+from flask_login import logout_user
+from flask_login import login_required
+from flask import request
+from urllib.parse import urlsplit
 @app.route("/")
+@app.route('/index')
+@login_required
 def index():
     user = {'username':'Miguel'}
     posts = [
@@ -20,7 +24,7 @@ def index():
             'body': 'The Spiderman movie was so cool!'
         }
     ]
-    return render_template('index.html', title='Home', user=user, posts=posts)
+    return render_template('index.html', title='Home Page', posts=posts)
  
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -33,6 +37,13 @@ def login():
             flash('Invalid username or password')
             return redirect(url_for('login'))
         login_user(user, remember = form.remember_me.data)
-        return redirect(url_for('index'))
+        next_page = request.args.get('next')
+        if not next_page or urlsplit(next_page).netloc != '':
+            next_page = url_for('index')
+        return redirect(next_page)
     return render_template('login.html', title='Sign In', form = form)
 
+@app.route('/logout')
+def logout():
+    logout_user()
+    return redirect(url_for('index'))
