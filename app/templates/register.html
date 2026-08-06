@@ -26,14 +26,14 @@
             {% endfor %}
         </p>
         <p>
-            {{ for.password2.label }}<br>
+            {{ form.password2.label }}<br>
             {{ form.password2(size=64) }}<br>
             {% for error in form.password2.errors %}
             <span style="color: red;">[{{ error }}]</span>
             {% endfor %}
         </p>
         <p>
-            {{ for.submit() }}
+            {{ form.submit() }}
         </p>
     </form>
 </h1>

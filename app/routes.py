@@ -26,7 +26,7 @@ def index():
             'body': 'The Spiderman movie was so cool!'
         }
     ]
-    return render_template('index.html', title='Home Page', posts=posts)
+    return render_template('index.html', title='Home Page', user=user, posts=posts)
  
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -34,8 +34,8 @@ def login():
         return redirect(url_for('index'))
     form = LoginForm()
     if form.validate_on_submit():
-        user = db.session.scalars(sa.select(User).where(User.username == form.username.data))
-        if user is None or not user.check_password(form.username.data):
+        user = db.session.scalar(sa.select(User).where(User.username == form.username.data))
+        if user is None or not user.check_password(form.password.data):
             flash('Invalid username or password')
             return redirect(url_for('login'))
         login_user(user, remember = form.remember_me.data)
@@ -63,4 +63,3 @@ def register():
         flash('Congratulations, you are now a registered user!')
         return redirect(url_for('login'))
     return render_template('register.html', title = 'Register', form=form)
-    
