@@ -3,8 +3,9 @@ from wtforms import StringField, PasswordField, BooleanField, SubmitField
 from wtforms.validators import DataRequired, ValidationError, Email, EqualTo
 import sqlalchemy as sa
 from app import db
-from app.models import User
-
+from app.models import Use
+from wtforms import TextAreaField
+from wtforms.validators import Length
 
 
 
@@ -31,3 +32,8 @@ class RegistrationForm(FlaskForm):
         user = db.session.scalar(sa.select(User).where(User.email == email.data))
         if user is not None:
             raise ValidationError('Please use a different email address')
+    
+class EditProfileForm(FlaskForm):
+    username = StringField('username', validators = [DataRequired()])
+    about_me = TextAreaField('About me', valiators=[Length(min=0, max=140)])
+    submit = SubmitField('Submit')
